@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the skill-logs viewer CLI to ~/.local/bin.
+# Installs the skill-observer viewer CLI to ~/.local/bin.
 #
 # Public repo:
 #   curl -sL https://raw.githubusercontent.com/silverlogic/skill-observer/main/install.sh | bash
@@ -21,19 +21,19 @@ fi
 mkdir -p "$INSTALL_DIR"
 
 # If running from a local clone, copy directly
-if [[ -f "$SCRIPT_DIR/bin/skill-logs" ]]; then
-  cp "$SCRIPT_DIR/bin/skill-logs" "$INSTALL_DIR/skill-logs"
+if [[ -f "$SCRIPT_DIR/bin/skill-observer" ]]; then
+  cp "$SCRIPT_DIR/bin/skill-observer" "$INSTALL_DIR/skill-observer"
 # Otherwise download from GitHub
 elif command -v curl &>/dev/null; then
-  curl -sL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/bin/skill-logs" -o "$INSTALL_DIR/skill-logs"
+  curl -sL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/bin/skill-observer" -o "$INSTALL_DIR/skill-observer"
 elif command -v wget &>/dev/null; then
-  wget -qO "$INSTALL_DIR/skill-logs" "https://raw.githubusercontent.com/${REPO}/${BRANCH}/bin/skill-logs"
+  wget -qO "$INSTALL_DIR/skill-observer" "https://raw.githubusercontent.com/${REPO}/${BRANCH}/bin/skill-observer"
 else
   echo "Error: curl or wget required." >&2
   exit 1
 fi
 
-chmod +x "$INSTALL_DIR/skill-logs"
+chmod +x "$INSTALL_DIR/skill-observer"
 
 # Check if ~/.local/bin is on PATH
 if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
@@ -50,5 +50,5 @@ if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
   echo ""
 fi
 
-echo "Installed skill-logs to $INSTALL_DIR/skill-logs"
-echo "Run 'skill-logs --help' to get started."
+echo "Installed skill-observer to $INSTALL_DIR/skill-observer"
+echo "Run 'skill-observer --help' to get started."

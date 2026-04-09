@@ -3,14 +3,14 @@
 # Part of the skill-observer plugin.
 #
 # Usage:
-#   skill-logs                                     # all events
-#   skill-logs --skill ba-patterns                 # filter by skill
-#   skill-logs --event reference_read              # filter by event type
-#   skill-logs --session abc123                    # filter by session
-#   skill-logs --skill ba-patterns --event skill_invoked  # combined
-#   skill-logs --json                              # raw JSONL output
-#   skill-logs --all                               # show all entries (default: last 2h)
-#   skill-logs --clear                             # delete log file
+#   skill-observer                                     # all events
+#   skill-observer --skill ba-patterns                 # filter by skill
+#   skill-observer --event reference_read              # filter by event type
+#   skill-observer --session abc123                    # filter by session
+#   skill-observer --skill ba-patterns --event skill_invoked  # combined
+#   skill-observer --json                              # raw JSONL output
+#   skill-observer --all                               # show all entries (default: last 2h)
+#   skill-observer --clear                             # delete log file
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --all)      SHOW_ALL=true; shift ;;
     --clear)    CLEAR=true; shift ;;
     --help|-h)
-      echo "Usage: skill-logs [OPTIONS]"
+      echo "Usage: skill-observer [OPTIONS]"
       echo ""
       echo "Options:"
       echo "  --skill NAME      Filter by skill name (e.g., ba-patterns)"
@@ -55,7 +55,7 @@ LOG_FILE="$REPO_ROOT/.claude/logs/skills.jsonl"
 
 if ! $CLEAR && [[ ! -d "$REPO_ROOT/.claude" ]]; then
   echo "No .claude directory found in $REPO_ROOT" >&2
-  echo "skill-logs must be run from a project with Claude Code initialized." >&2
+  echo "skill-observer must be run from a project with Claude Code initialized." >&2
   exit 1
 fi
 

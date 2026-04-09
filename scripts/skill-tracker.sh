@@ -16,11 +16,11 @@ check_log_capacity() {
   local file_size
   file_size=$(stat -f%z "${log_file}" 2>/dev/null || stat -c%s "${log_file}" 2>/dev/null || echo 0)
   if [[ "${file_size}" -ge "${MAX_SIZE}" ]]; then
-    jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (5MB) — logging is paused. Ask the user to either:\n1. Run `skill-logs --clear` in their terminal to reset the logs\n2. Disable the skill-observer plugin if it is no longer needed (`/plugin marketplace remove silverlogic/skill-observer`)"}'
+    jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (5MB) — logging is paused. Ask the user to either:\n1. Run `skill-observer --clear` in their terminal to reset the logs\n2. Disable the skill-observer plugin if it is no longer needed (`/plugin marketplace remove silverlogic/skill-observer`)"}'
     return 1
   fi
   if [[ "${file_size}" -ge "${WARN_SIZE}" ]]; then
-    WARN_MSG="Skill Observer log is approaching capacity ($(( file_size / 1048576 ))MB/5MB). Logging will pause at 5MB. Run skill-logs --clear to reset, or disable the plugin if no longer needed."
+    WARN_MSG="Skill Observer log is approaching capacity ($(( file_size / 1048576 ))MB/5MB). Logging will pause at 5MB. Run skill-observer --clear to reset, or disable the plugin if no longer needed."
   fi
 }
 

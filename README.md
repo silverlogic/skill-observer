@@ -22,31 +22,31 @@ The hook activates globally and starts logging skill access in every project.
 curl -sL https://raw.githubusercontent.com/silverlogic/skill-observer/main/install.sh | bash
 ```
 
-Installs `skill-logs` to `~/.local/bin/`. The installer tells you if you need to add it to your PATH.
+Installs `skill-observer` to `~/.local/bin/`. The installer tells you if you need to add it to your PATH.
 
 ## Usage
 
 Open a separate terminal, `cd` into your project, and run:
 
 ```bash
-skill-logs
+skill-observer
 ```
 
 ### Filtering
 
 ```bash
-skill-logs --skill ba-patterns                 # one skill only
-skill-logs --event reference_read              # only reference reads
-skill-logs --session abc123                    # one session (prefix match)
-skill-logs --skill ba-patterns --event skill_loaded  # combined
+skill-observer --skill ba-patterns                 # one skill only
+skill-observer --event reference_read              # only reference reads
+skill-observer --session abc123                    # one session (prefix match)
+skill-observer --skill ba-patterns --event skill_loaded  # combined
 ```
 
 ### Other commands
 
 ```bash
-skill-logs --json       # raw JSONL (for piping to jq, scripts, etc.)
-skill-logs --clear      # delete the log file
-skill-logs --help       # all options
+skill-observer --json       # raw JSONL (for piping to jq, scripts, etc.)
+skill-observer --clear      # delete the log file
+skill-observer --help       # all options
 ```
 
 ## What it tracks
@@ -81,11 +81,11 @@ Watching for new skill access events... (Ctrl+C to stop)
 1. A `PreToolUse` hook intercepts every `Read` tool call
 2. If the file is under `.claude/skills/`, it logs a JSONL entry to `.claude/logs/skills.jsonl`
 3. First access to a skill in a session emits a synthetic `skill_loaded` event
-4. The `skill-logs` viewer tails the log file with `tail -f` + `jq` formatting
+4. The `skill-observer` viewer tails the log file with `tail -f` + `jq` formatting
 
 ## Log recycling
 
-Logs are capped at **5MB** (~25,000 entries). When approaching capacity, the hook warns Claude via `systemMessage`. When full, it stops logging and asks Claude to suggest running `skill-logs --clear`. No data is deleted without your consent.
+Logs are capped at **5MB** (~25,000 entries). When approaching capacity, the hook warns Claude via `systemMessage`. When full, it stops logging and asks Claude to suggest running `skill-observer --clear`. No data is deleted without your consent.
 
 ## Log format
 
