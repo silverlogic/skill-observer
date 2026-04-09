@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# Real-time skill access log viewer with filtering.
+# Part of the skill-observer plugin.
+#
+# Usage:
+#   skill-logs                                     # all events
+#   skill-logs --skill ba-patterns                 # filter by skill
+#   skill-logs --event reference_read              # filter by event type
+#   skill-logs --session abc123                    # filter by session
+#   skill-logs --skill ba-patterns --event skill_invoked  # combined
+#   skill-logs --json                              # raw JSONL output
+#   skill-logs --all                               # show all entries (default: last 2h)
+#   skill-logs --clear                             # delete log file
+
+set -euo pipefail
+
+# --- Parse CLI flags ---
+
+FILTER_SKILL=""
+FILTER_EVENT=""
+FILTER_SESSION=""
+RAW_JSON=false
+SHOW_ALL=false
+CLEAR=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skill)    FILTER_SKILL="$2"; shift 2 ;;
+    --event)    FILTER_EVENT="$2"; shift 2 ;;
+    --session)  FILTER_SESSION="$2"; shift 2 ;;
+    --json)     RAW_JSON=true; shift ;;
+    --all)      SHOW_ALL=true; shift ;;
+    --clear)    CLEAR=true; shift ;;
+    --help|-h)
+      echo "Usage: skill-logs [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --skill NAME      Filter by skill name (e.g., ba-patterns)"
+      echo "  --event TYPE      Filter by event (skill_loaded, reference_read, skill_file_read)"
+      echo "  --session ID      Filter by session ID (prefix match)"
+      echo "  --json            Output raw JSONL (for piping)"
+      echo "  --all             Show all entries (default: last 2 hours)"
+      echo "  --clear           Delete the log file"
+      echo "  -h, --help        Show this help"
+      exit 0
+      ;;
+    *) echo "Unknown option: $1. Use --help for usage." >&2; exit 1 ;;
+  esac
+done
+
+# --- Resolve log file ---
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+LOG_FILE="$REPO_ROOT/.claude/logs/skills.jsonl"
+
+if $CLEAR; then
+  rm -f "$LOG_FILE"
+  echo "Skill logs cleared."
+  exit 0
+fi
+
+# --- Build jq filter ---
+
+JQ_SELECT=""
+if [[ -n "$FILTER_SKILL" ]]; then
+  JQ_SELECT="${JQ_SELECT} and .skill == \"$FILTER_SKILL\""
+fi
+if [[ -n "$FILTER_EVENT" ]]; then
+  JQ_SELECT="${JQ_SELECT} and .event == \"$FILTER_EVENT\""
+fi
+if [[ -n "$FILTER_SESSION" ]]; then
+  JQ_SELECT="${JQ_SELECT} and (.session_id | startswith(\"$FILTER_SESSION\"))"
+fi
+
+# Strip leading " and " if any filters were added
+if [[ -n "$JQ_SELECT" ]]; then
+  JQ_SELECT="select(${JQ_SELECT# and })"
+else
+  JQ_SELECT="."
+fi
+
+# --- Format expression ---
+
+if $RAW_JSON; then
+  JQ_FORMAT="$JQ_SELECT"
+  JQ_FLAGS="-c"
+else
+  JQ_FLAGS="-r"
+  # ANSI codes
+  DIM='\u001b[2m'
+  RST='\u001b[0m'
+  BOLD='\u001b[1m'
+  GREEN='\u001b[32m'
+  CYAN='\u001b[36m'
+  YELLOW='\u001b[33m'
+  MAGENTA='\u001b[35m'
+  WHITE='\u001b[37m'
+
+  # jq format: time [session] icon EVENT  skill  file [lines]
+  JQ_FORMAT="${JQ_SELECT} |
+    (if .event == \"skill_loaded\" then [\"${GREEN}\", \"●\", \"${BOLD}SKILL LOADED ${RST}\"]
+     elif .event == \"reference_read\" then [\"${CYAN}\", \"◆\", \"${BOLD}REF READ     ${RST}\"]
+     else [\"${YELLOW}\", \"■\", \"${BOLD}FILE READ    ${RST}\"]
+     end) as \$ev |
+    (.ts | split(\"T\")[1] | .[0:8]) as \$time |
+    (.session_id[0:8]) as \$sid |
+    (.skill | . + (\" \" * (16 - length))) as \$sk |
+    \"${DIM}\(\$time)${RST} ${DIM}[\(\$sid)]${RST} \(\$ev[0])\(\$ev[1]) \(\$ev[2])  ${MAGENTA}\(\$sk)${RST}  ${WHITE}\(.file)${RST}\(if .lines then \" ${DIM}[\(.lines)]${RST}\" else \"\" end)\""
+fi
+
+# --- Time cutoff for initial display (default: last 2 hours) ---
+
+CUTOFF=""
+if ! $SHOW_ALL; then
+  CUTOFF=$(date -v-2H +"%Y-%m-%dT%H:%M:%S" 2>/dev/null || date -d '2 hours ago' +"%Y-%m-%dT%H:%M:%S" 2>/dev/null || "")
+fi
+
+if [[ -n "$CUTOFF" ]]; then
+  JQ_INITIAL="select(.ts[0:19] >= \"$CUTOFF\") | $JQ_FORMAT"
+else
+  JQ_INITIAL="$JQ_FORMAT"
+fi
+
+# --- Output ---
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Header
+if ! $RAW_JSON; then
+  COLS=$(tput cols 2>/dev/null || echo 80)
+  [[ $COLS -gt 80 ]] && COLS=80
+
+  # Show file size in header
+  SIZE_DISPLAY=""
+  if [[ -f "$LOG_FILE" ]]; then
+    SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
+    SIZE_KB=$(( SIZE / 1024 ))
+    MAX_KB=$(( 5242880 / 1024 ))
+    SIZE_DISPLAY=" (${SIZE_KB}KB/${MAX_KB}KB)"
+  fi
+
+  echo ""
+  printf "\033[1m Skills Observer\033[0m \033[2m— %s%s\033[0m\n" "$LOG_FILE" "$SIZE_DISPLAY"
+  printf "\033[2m%s\033[0m\n" "$(printf '─%.0s' $(seq 1 "$COLS"))"
+  echo ""
+fi
+
+# Capture line count before reading, so tail can resume from the right position
+LINE_COUNT=0
+if [[ -f "$LOG_FILE" ]]; then
+  LINE_COUNT=$(wc -l < "$LOG_FILE" | tr -d ' ')
+fi
+
+# Print existing entries
+if [[ -f "$LOG_FILE" ]]; then
+  EXISTING=$(jq $JQ_FLAGS "$JQ_INITIAL" < "$LOG_FILE" 2>/dev/null || true)
+  if [[ -n "$EXISTING" ]]; then
+    echo "$EXISTING"
+    if ! $RAW_JSON; then
+      COUNT=$(echo "$EXISTING" | wc -l | tr -d ' ')
+      HINT=""
+      if [[ -n "$CUTOFF" ]]; then
+        HINT=" (last 2h — use --all for complete history)"
+      fi
+      echo ""
+      printf "\033[2m─── %s existing entries above%s ───\033[0m\n" "$COUNT" "$HINT"
+      echo ""
+    fi
+  fi
+fi
+
+# Tail new entries
+if ! $RAW_JSON; then
+  printf "\033[2mWatching for new skill access events... (Ctrl+C to stop)\033[0m\n"
+fi
+
+# Wait for file to exist, then tail
+while [[ ! -f "$LOG_FILE" ]]; do
+  sleep 1
+done
+
+tail -n +$((LINE_COUNT + 1)) -f "$LOG_FILE" | jq --unbuffered $JQ_FLAGS "$JQ_FORMAT" 2>/dev/null
