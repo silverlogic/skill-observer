@@ -12,7 +12,11 @@ set -euo pipefail
 INSTALL_DIR="${HOME}/.local/bin"
 REPO="silverlogic/skill-observer"
 BRANCH="main"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR=""
+fi
 
 mkdir -p "$INSTALL_DIR"
 
