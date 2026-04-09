@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "skill-observer",
-      "source": ".",
+      "source": "./",
       "description": "Track and visualize skill usage across Claude Code sessions",
       "version": "0.0.1"
     }
