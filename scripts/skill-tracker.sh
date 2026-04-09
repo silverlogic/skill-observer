@@ -63,7 +63,7 @@ main() {
   local filename="${file_path##*/}"
   local tmp="${file_path#*.claude/skills/}"
   local skill="${tmp%%/*}"
-  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local timestamp; timestamp=$(date +"%Y-%m-%dT%H:%M:%S%z")
 
   local line_range=""
   if [[ "${offset}" =~ ^[0-9]+$ && "${limit}" =~ ^[0-9]+$ ]]; then

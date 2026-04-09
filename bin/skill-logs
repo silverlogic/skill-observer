@@ -9,6 +9,7 @@
 #   skill-logs --session abc123                    # filter by session
 #   skill-logs --skill ba-patterns --event skill_invoked  # combined
 #   skill-logs --json                              # raw JSONL output
+#   skill-logs --all                               # show all entries (default: last 2h)
 #   skill-logs --clear                             # delete log file
 
 set -euo pipefail
@@ -19,6 +20,7 @@ FILTER_SKILL=""
 FILTER_EVENT=""
 FILTER_SESSION=""
 RAW_JSON=false
+SHOW_ALL=false
 CLEAR=false
 
 while [[ $# -gt 0 ]]; do
@@ -27,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     --event)    FILTER_EVENT="$2"; shift 2 ;;
     --session)  FILTER_SESSION="$2"; shift 2 ;;
     --json)     RAW_JSON=true; shift ;;
+    --all)      SHOW_ALL=true; shift ;;
     --clear)    CLEAR=true; shift ;;
     --help|-h)
       echo "Usage: skill-logs [OPTIONS]"
@@ -36,6 +39,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --event TYPE      Filter by event (skill_loaded, reference_read, skill_file_read)"
       echo "  --session ID      Filter by session ID (prefix match)"
       echo "  --json            Output raw JSONL (for piping)"
+      echo "  --all             Show all entries (default: last 2 hours)"
       echo "  --clear           Delete the log file"
       echo "  -h, --help        Show this help"
       exit 0
@@ -98,10 +102,23 @@ else
      elif .event == \"reference_read\" then [\"${CYAN}\", \"◆\", \"${BOLD}REF READ     ${RST}\"]
      else [\"${YELLOW}\", \"■\", \"${BOLD}FILE READ    ${RST}\"]
      end) as \$ev |
-    (.ts | split(\"T\")[1] | rtrimstr(\"Z\")) as \$time |
+    (.ts | split(\"T\")[1] | .[0:8]) as \$time |
     (.session_id[0:8]) as \$sid |
     (.skill | . + (\" \" * (16 - length))) as \$sk |
     \"${DIM}\(\$time)${RST} ${DIM}[\(\$sid)]${RST} \(\$ev[0])\(\$ev[1]) \(\$ev[2])  ${MAGENTA}\(\$sk)${RST}  ${WHITE}\(.file)${RST}\(if .lines then \" ${DIM}[\(.lines)]${RST}\" else \"\" end)\""
+fi
+
+# --- Time cutoff for initial display (default: last 2 hours) ---
+
+CUTOFF=""
+if ! $SHOW_ALL; then
+  CUTOFF=$(date -v-2H +"%Y-%m-%dT%H:%M:%S" 2>/dev/null || date -d '2 hours ago' +"%Y-%m-%dT%H:%M:%S" 2>/dev/null || "")
+fi
+
+if [[ -n "$CUTOFF" ]]; then
+  JQ_INITIAL="select(.ts[0:19] >= \"$CUTOFF\") | $JQ_FORMAT"
+else
+  JQ_INITIAL="$JQ_FORMAT"
 fi
 
 # --- Output ---
@@ -129,15 +146,25 @@ if ! $RAW_JSON; then
   echo ""
 fi
 
+# Capture line count before reading, so tail can resume from the right position
+LINE_COUNT=0
+if [[ -f "$LOG_FILE" ]]; then
+  LINE_COUNT=$(wc -l < "$LOG_FILE" | tr -d ' ')
+fi
+
 # Print existing entries
 if [[ -f "$LOG_FILE" ]]; then
-  EXISTING=$(jq $JQ_FLAGS "$JQ_FORMAT" < "$LOG_FILE" 2>/dev/null || true)
+  EXISTING=$(jq $JQ_FLAGS "$JQ_INITIAL" < "$LOG_FILE" 2>/dev/null || true)
   if [[ -n "$EXISTING" ]]; then
     echo "$EXISTING"
     if ! $RAW_JSON; then
       COUNT=$(echo "$EXISTING" | wc -l | tr -d ' ')
+      HINT=""
+      if [[ -n "$CUTOFF" ]]; then
+        HINT=" (last 2h — use --all for complete history)"
+      fi
       echo ""
-      printf "\033[2m─── %s existing entries above ───\033[0m\n" "$COUNT"
+      printf "\033[2m─── %s existing entries above%s ───\033[0m\n" "$COUNT" "$HINT"
       echo ""
     fi
   fi
@@ -153,4 +180,4 @@ while [[ ! -f "$LOG_FILE" ]]; do
   sleep 1
 done
 
-tail -n 0 -f "$LOG_FILE" | jq --unbuffered $JQ_FLAGS "$JQ_FORMAT" 2>/dev/null
+tail -n +$((LINE_COUNT + 1)) -f "$LOG_FILE" | jq --unbuffered $JQ_FLAGS "$JQ_FORMAT" 2>/dev/null
