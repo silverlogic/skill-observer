@@ -10,6 +10,8 @@
 #   skill-observer --skill ba-patterns --event skill_invoked  # combined
 #   skill-observer --json                              # raw JSONL output
 #   skill-observer --all                               # show all entries (default: last 2h)
+#   skill-observer --no-recycle                        # disable auto-recycling
+#   skill-observer --recycle                           # re-enable auto-recycling
 #   skill-observer --clear                             # delete log file
 
 set -euo pipefail
@@ -22,6 +24,7 @@ FILTER_SESSION=""
 RAW_JSON=false
 SHOW_ALL=false
 CLEAR=false
+SET_RECYCLE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -30,6 +33,8 @@ while [[ $# -gt 0 ]]; do
     --session)  FILTER_SESSION="$2"; shift 2 ;;
     --json)     RAW_JSON=true; shift ;;
     --all)      SHOW_ALL=true; shift ;;
+    --recycle)  SET_RECYCLE="on"; shift ;;
+    --no-recycle) SET_RECYCLE="off"; shift ;;
     --clear)    CLEAR=true; shift ;;
     --help|-h)
       echo "Usage: skill-observer [OPTIONS]"
@@ -40,6 +45,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --session ID      Filter by session ID (prefix match)"
       echo "  --json            Output raw JSONL (for piping)"
       echo "  --all             Show all entries (default: last 2 hours)"
+      echo "  --recycle         Enable auto-recycling when log is full (default)"
+      echo "  --no-recycle      Disable auto-recycling (pause logging when full)"
       echo "  --clear           Delete the log file"
       echo "  -h, --help        Show this help"
       exit 0
@@ -62,6 +69,19 @@ fi
 if $CLEAR; then
   rm -f "$LOG_FILE"
   echo "Skill logs cleared."
+  exit 0
+fi
+
+NO_RECYCLE_MARKER="$REPO_ROOT/.claude/logs/.no-recycle"
+
+if [[ "$SET_RECYCLE" == "on" ]]; then
+  rm -f "$NO_RECYCLE_MARKER"
+  echo "Auto-recycling enabled. Oldest logs will be trimmed when the file reaches 5MB."
+  exit 0
+elif [[ "$SET_RECYCLE" == "off" ]]; then
+  mkdir -p "$(dirname "$NO_RECYCLE_MARKER")"
+  touch "$NO_RECYCLE_MARKER"
+  echo "Auto-recycling disabled. Logging will pause when the file reaches 5MB."
   exit 0
 fi
 
@@ -146,9 +166,27 @@ if ! $RAW_JSON; then
     SIZE_DISPLAY=" (${SIZE_KB}KB/${MAX_KB}KB)"
   fi
 
+  # Recycle status
+  RECYCLE_STATUS=""
+  if [[ -f "$NO_RECYCLE_MARKER" ]]; then
+    RECYCLE_STATUS=" \033[33m[auto-recycle: off]\033[0m"
+  fi
+
   echo ""
-  printf "\033[1m Skills Observer\033[0m \033[2m— %s%s\033[0m\n" "$LOG_FILE" "$SIZE_DISPLAY"
+  printf "\033[1m Skills Observer\033[0m \033[2m— %s%s\033[0m%b\n" "$LOG_FILE" "$SIZE_DISPLAY" "$RECYCLE_STATUS"
   printf "\033[2m%s\033[0m\n" "$(printf '─%.0s' $(seq 1 "$COLS"))"
+
+  # Warn if log is full and recycling is off
+  if [[ -f "$NO_RECYCLE_MARKER" && -f "$LOG_FILE" ]]; then
+    SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
+    if [[ "$SIZE" -ge 5242880 ]]; then
+      echo ""
+      printf "\033[33m⚠ Log is full (5MB) — logging is paused.\033[0m\n"
+      printf "\033[2m  Run: skill-observer --clear       to reset logs\033[0m\n"
+      printf "\033[2m  Run: skill-observer --recycle      to enable auto-recycling\033[0m\n"
+    fi
+  fi
+
   echo ""
 fi
 
@@ -162,15 +200,25 @@ fi
 if [[ -f "$LOG_FILE" ]]; then
   EXISTING=$(jq $JQ_FLAGS "$JQ_INITIAL" < "$LOG_FILE" 2>/dev/null || true)
   if [[ -n "$EXISTING" ]]; then
-    echo "$EXISTING"
+    TOTAL=$(echo "$EXISTING" | wc -l | tr -d ' ')
+    if ! $SHOW_ALL && [[ "$TOTAL" -gt 50 ]]; then
+      echo "$EXISTING" | tail -n 50
+      SHOWN=50
+    else
+      echo "$EXISTING"
+      SHOWN="$TOTAL"
+    fi
     if ! $RAW_JSON; then
-      COUNT=$(echo "$EXISTING" | wc -l | tr -d ' ')
       HINT=""
-      if [[ -n "$CUTOFF" ]]; then
-        HINT=" (last 2h — use --all for complete history)"
+      if ! $SHOW_ALL; then
+        if [[ "$TOTAL" -gt 50 ]]; then
+          HINT=" (newest 50 of ${TOTAL} from last 2h — use --all for complete history)"
+        elif [[ -n "$CUTOFF" ]]; then
+          HINT=" (last 2h — use --all for complete history)"
+        fi
       fi
       echo ""
-      printf "\033[2m─── %s existing entries above%s ───\033[0m\n" "$COUNT" "$HINT"
+      printf "\033[2m─── %s existing entries above%s ───\033[0m\n" "$SHOWN" "$HINT"
       echo ""
     fi
   fi

@@ -3,11 +3,10 @@
 set -euo pipefail
 
 readonly MAX_SIZE=5242880   # 5MB
-readonly WARN_SIZE=4194304  # 4MB
 
 #######################################
-# Check log file capacity and emit hook warnings.
-# Globals: MAX_SIZE, WARN_SIZE (read), WARN_MSG (write)
+# Check log file capacity and recycle if needed.
+# Globals: MAX_SIZE (read)
 # Arguments: $1 - log file path
 #######################################
 check_log_capacity() {
@@ -16,11 +15,17 @@ check_log_capacity() {
   local file_size
   file_size=$(stat -f%z "${log_file}" 2>/dev/null || stat -c%s "${log_file}" 2>/dev/null || echo 0)
   if [[ "${file_size}" -ge "${MAX_SIZE}" ]]; then
-    jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (5MB) — logging is paused. Ask the user to either:\n1. Run `skill-observer --clear` in their terminal to reset the logs\n2. Disable the skill-observer plugin if it is no longer needed (`/plugin marketplace remove silverlogic/skill-observer`)"}'
-    return 1
-  fi
-  if [[ "${file_size}" -ge "${WARN_SIZE}" ]]; then
-    WARN_MSG="Skill Observer log is approaching capacity ($(( file_size / 1048576 ))MB/5MB). Logging will pause at 5MB. Run skill-observer --clear to reset, or disable the plugin if no longer needed."
+    local no_recycle_marker="$(dirname "${log_file}")/.no-recycle"
+    if [[ -f "${no_recycle_marker}" ]]; then
+      jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (5MB) — logging is paused. Run `skill-observer --clear` to reset or `skill-observer --recycle` to enable auto-recycling."}'
+      return 1
+    fi
+    # Recycle: keep the newest half of entries
+    local line_count keep tmp_file
+    line_count=$(wc -l < "${log_file}" | tr -d ' ')
+    keep=$(( line_count / 2 ))
+    tmp_file="${log_file}.tmp"
+    tail -n "${keep}" "${log_file}" > "${tmp_file}" && mv "${tmp_file}" "${log_file}"
   fi
 }
 
@@ -48,7 +53,7 @@ log_skill_access() {
 
 #######################################
 # Main entry point. Reads hook JSON from stdin and logs skill access events.
-# Globals: MAX_SIZE, WARN_SIZE (read)
+# Globals: MAX_SIZE (read)
 # Arguments: None
 #######################################
 main() {
@@ -85,11 +90,9 @@ main() {
   log_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/logs"
   mkdir -p "${log_dir}"
   log_file="${log_dir}/skills.jsonl"
-  WARN_MSG=""
   if ! check_log_capacity "${log_file}"; then exit 0; fi
   log_skill_access "${timestamp}" "${session_id}" "${event}" "${skill}" \
     "${filename}" "${file_path}" "${line_range}" "${log_file}"
-  [[ -n "${WARN_MSG}" ]] && jq -nc --arg m "${WARN_MSG}" '{continue: true, systemMessage: $m}'
   exit 0
 }
 
