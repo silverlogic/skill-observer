@@ -85,7 +85,7 @@ Watching for new skill access events... (Ctrl+C to stop)
 
 ## Log recycling
 
-Logs are capped at **5MB** (~25,000 entries). When approaching capacity, the hook warns Claude via `systemMessage`. When full, it stops logging and asks Claude to suggest running `skill-observer --clear`. No data is deleted without your consent.
+Logs are capped at **2MB**. When the limit is reached, the oldest half of entries are automatically trimmed and logging continues. To disable auto-recycling, run `skill-observer --no-recycle` (logging will pause at 2MB instead). Use `skill-observer --recycle` to re-enable it.
 
 ## Log format
 

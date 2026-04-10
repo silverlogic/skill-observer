@@ -2,7 +2,7 @@
 # PreToolUse hook for Read tool — logs skill access to JSONL. Fast-exits for non-skill reads.
 set -euo pipefail
 
-readonly MAX_SIZE=5242880   # 5MB
+readonly MAX_SIZE=2097152   # 2MB
 
 #######################################
 # Check log file capacity and recycle if needed.
@@ -17,7 +17,7 @@ check_log_capacity() {
   if [[ "${file_size}" -ge "${MAX_SIZE}" ]]; then
     local no_recycle_marker="$(dirname "${log_file}")/.no-recycle"
     if [[ -f "${no_recycle_marker}" ]]; then
-      jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (5MB) — logging is paused. Run `skill-observer --clear` to reset or `skill-observer --recycle` to enable auto-recycling."}'
+      jq -nc '{continue: true, systemMessage: "⚠ Skill Observer log is full (2MB) — logging is paused. Run `skill-observer --clear` to reset or `skill-observer --recycle` to enable auto-recycling."}'
       return 1
     fi
     # Recycle: keep the newest half of entries
@@ -25,7 +25,7 @@ check_log_capacity() {
     line_count=$(wc -l < "${log_file}" | tr -d ' ')
     keep=$(( line_count / 2 ))
     tmp_file="${log_file}.tmp"
-    tail -n "${keep}" "${log_file}" > "${tmp_file}" && mv "${tmp_file}" "${log_file}"
+    tail -n "${keep}" "${log_file}" > "${tmp_file}" && cat "${tmp_file}" > "${log_file}" && rm -f "${tmp_file}"
   fi
 }
 

@@ -76,12 +76,12 @@ NO_RECYCLE_MARKER="$REPO_ROOT/.claude/logs/.no-recycle"
 
 if [[ "$SET_RECYCLE" == "on" ]]; then
   rm -f "$NO_RECYCLE_MARKER"
-  echo "Auto-recycling enabled. Oldest logs will be trimmed when the file reaches 5MB."
+  echo "Auto-recycling enabled. Oldest logs will be trimmed when the file reaches 2MB."
   exit 0
 elif [[ "$SET_RECYCLE" == "off" ]]; then
   mkdir -p "$(dirname "$NO_RECYCLE_MARKER")"
   touch "$NO_RECYCLE_MARKER"
-  echo "Auto-recycling disabled. Logging will pause when the file reaches 5MB."
+  echo "Auto-recycling disabled. Logging will pause when the file reaches 2MB."
   exit 0
 fi
 
@@ -162,7 +162,7 @@ if ! $RAW_JSON; then
   if [[ -f "$LOG_FILE" ]]; then
     SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
     SIZE_KB=$(( SIZE / 1024 ))
-    MAX_KB=$(( 5242880 / 1024 ))
+    MAX_KB=$(( 2097152 / 1024 ))
     SIZE_DISPLAY=" (${SIZE_KB}KB/${MAX_KB}KB)"
   fi
 
@@ -179,9 +179,9 @@ if ! $RAW_JSON; then
   # Warn if log is full and recycling is off
   if [[ -f "$NO_RECYCLE_MARKER" && -f "$LOG_FILE" ]]; then
     SIZE=$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
-    if [[ "$SIZE" -ge 5242880 ]]; then
+    if [[ "$SIZE" -ge 2097152 ]]; then
       echo ""
-      printf "\033[33m⚠ Log is full (5MB) — logging is paused.\033[0m\n"
+      printf "\033[33m⚠ Log is full (2MB) — logging is paused.\033[0m\n"
       printf "\033[2m  Run: skill-observer --clear       to reset logs\033[0m\n"
       printf "\033[2m  Run: skill-observer --recycle      to enable auto-recycling\033[0m\n"
     fi
