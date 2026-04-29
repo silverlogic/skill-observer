@@ -8,7 +8,7 @@
       "name": "skill-observer",
       "source": "./",
       "description": "Track and visualize skill usage across Claude Code sessions",
-      "version": "0.0.1"
+      "version": "0.0.2"
     }
   ]
 }

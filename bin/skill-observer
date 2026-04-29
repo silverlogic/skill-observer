@@ -58,13 +58,7 @@ done
 # --- Resolve log file ---
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-LOG_FILE="$REPO_ROOT/.claude/logs/skills.jsonl"
-
-if ! $CLEAR && [[ ! -d "$REPO_ROOT/.claude" ]]; then
-  echo "No .claude directory found in $REPO_ROOT" >&2
-  echo "skill-observer must be run from a project with Claude Code initialized." >&2
-  exit 1
-fi
+LOG_FILE="$REPO_ROOT/.skill-observer/logs/skills.jsonl"
 
 if $CLEAR; then
   rm -f "$LOG_FILE"
@@ -72,7 +66,7 @@ if $CLEAR; then
   exit 0
 fi
 
-NO_RECYCLE_MARKER="$REPO_ROOT/.claude/logs/.no-recycle"
+NO_RECYCLE_MARKER="$REPO_ROOT/.skill-observer/logs/.no-recycle"
 
 if [[ "$SET_RECYCLE" == "on" ]]; then
   rm -f "$NO_RECYCLE_MARKER"

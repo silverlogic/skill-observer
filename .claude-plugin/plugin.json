@@ -1,6 +1,6 @@
 {
   "name": "skill-observer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Track and visualize skill usage across Claude Code sessions",
   "author": {
     "name": "The SilverLogic"

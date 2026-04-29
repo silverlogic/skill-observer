@@ -86,9 +86,11 @@ main() {
   if [[ "${filename}" == "SKILL.md" ]]; then event="skill_loaded"
   elif [[ "${file_path}" == *"/references/"* ]]; then event="reference_read"; fi
 
-  local log_dir log_file
-  log_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/logs"
+  local log_dir log_file gitignore
+  log_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.skill-observer/logs"
   mkdir -p "${log_dir}"
+  gitignore="${log_dir%/logs}/.gitignore"
+  [[ -f "${gitignore}" ]] || printf '*\n' > "${gitignore}"
   log_file="${log_dir}/skills.jsonl"
   if ! check_log_capacity "${log_file}"; then exit 0; fi
   log_skill_access "${timestamp}" "${session_id}" "${event}" "${skill}" \
