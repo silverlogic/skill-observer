@@ -62,7 +62,13 @@ main() {
   { read -r tool_name; read -r file_path; read -r session_id; read -r offset; read -r limit; } < <(
     printf '%s' "${input}" | jq -r '(.tool_name // ""), (.tool_input.file_path // ""), (.session_id // "unknown"), (.tool_input.offset // ""), (.tool_input.limit // "")'
   ) || true
+  # Windows: jq.exe emits CRLF, so every value carries a trailing \r and none of
+  # the comparisons below would ever match.
+  tool_name="${tool_name%$'\r'}" file_path="${file_path%$'\r'}"
+  session_id="${session_id%$'\r'}" offset="${offset%$'\r'}" limit="${limit%$'\r'}"
   [[ "${tool_name}" == "Read" ]] || exit 0
+  # Windows: file_path arrives with backslashes, which never match the pattern below.
+  file_path="${file_path//\\//}"
   [[ "${file_path}" == *".claude/skills/"* ]] || exit 0
 
   local filename="${file_path##*/}"
