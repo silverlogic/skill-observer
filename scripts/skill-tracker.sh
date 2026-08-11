@@ -59,6 +59,14 @@ log_skill_access() {
 main() {
   local input tool_name file_path session_id offset limit
   input=$(cat)
+  # Fast-exit before spawning jq: this hook fires on every Read, but only skill
+  # files are logged. Matched against the raw payload, where Windows paths arrive
+  # JSON-escaped ("\\"). Strictly wider than the file_path guard below, so no
+  # event is lost.
+  case "${input}" in
+    *'.claude/skills/'*|*'.claude\\skills\\'*) ;;
+    *) exit 0 ;;
+  esac
   { read -r tool_name; read -r file_path; read -r session_id; read -r offset; read -r limit; } < <(
     printf '%s' "${input}" | jq -r '(.tool_name // ""), (.tool_input.file_path // ""), (.session_id // "unknown"), (.tool_input.offset // ""), (.tool_input.limit // "")'
   ) || true
